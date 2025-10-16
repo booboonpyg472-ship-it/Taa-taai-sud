@@ -16,6 +16,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            padding-right: 280px;
             padding-top: 80px; 
             padding-bottom: 20px;
             overflow: hidden; /* Prevent body scroll */
@@ -26,7 +27,7 @@
             position: relative;
             width: 98vw; 
             height: 88vh; 
-            max-width: 1300px;
+            max-width: none;
             max-height: 900px;
             background: linear-gradient(to top right, #340707, #1a0303); 
             border: 8px solid #a31010;
@@ -195,6 +196,17 @@
             ตั้งค่าผู้เล่นเพื่อเริ่มเกม
         </div>
     </div>
+
+    <div id="mobile-scoreboard" class="lg:hidden fixed top-0 left-0 w-full bg-red-800/80 p-2 z-50 shadow-2xl backdrop-blur-sm">
+    <div class="flex justify-between items-center text-white text-sm font-bold">
+        <!-- ใช้อันเดียวกับตัวหลัก -->
+        <span class="ml-2">ผู้เล่น: <span id="player-count-mobile">0</span></span>
+        <span class="mr-2">ไพ่เหลือ: <span id="remaining-count-mobile">87</span>/<span id="total-count-mobile">95</span></span>
+    </div>
+    <div id="mobile-scoreboard-content" class="text-xs text-center mt-1 space-y-0.5 max-h-16 overflow-y-auto">
+        <!-- RENDERED BY JS: แสดงรายชื่อผู้เล่นสั้นๆ -->
+    </div>
+</div>
 
     <!-- Scoreboard (Side Panel - For wider screens) -->
     <!-- Note: Class 'lg:block' ensures it is only visible on large screens (where we reserve space) -->
@@ -565,15 +577,20 @@
         }
 
         function renderScoreboard() {
+            // 📌 NEW: ดึง Element ของ Mobile Scoreboard มาด้วย
+            const mobileScoreboardDiv = document.getElementById('mobile-scoreboard-content');
+
             if (players.length === 0) {
                 SCOREBOARD_LIST.innerHTML = '<p class="text-sm text-gray-400">กรุณาตั้งชื่อผู้เล่นก่อน</p>';
                 MODAL_SCOREBOARD_LIST.innerHTML = '<p class="text-xs text-gray-500">No players</p>';
+                // 📌 NEW: Reset Mobile Scoreboard ด้วย
+                if (mobileScoreboardDiv) mobileScoreboardDiv.innerHTML = '';
                 return;
             }
 
             players.sort((a, b) => b.score - a.score);
 
-            // Render Side Scoreboard
+            // --- 1. Render Side Scoreboard (Full Info) ---
             SCOREBOARD_LIST.innerHTML = players.map((player, index) => {
                 const rankColor = index === 0 ? 'text-yellow-400' : 'text-white';
                 
@@ -585,7 +602,7 @@
                     : ''; 
                 
                 return `
-                    <div class="flex justify-between items-center text-lg font-semibold ${rankColor}">
+                    <div class="flex justify-between items-center text-lg font-semibold ${rankColor} mb-2">
                         <div class="flex items-center mr-4">
                         <span>${player.name}${characterIndicator}</span>
                         </div>
@@ -594,7 +611,21 @@
                 `;
             }).join('');
             
-            // Render Modal Mini Scoreboard
+            // --- 2. Render Mobile Scoreboard (Compact Info) ---
+            if (mobileScoreboardDiv) {
+                mobileScoreboardDiv.innerHTML = players.map(player => `
+                    <div class="flex justify-between items-center text-gray-200 text-xs">
+                        <span class="mr-1 truncate" title="${player.name}">
+                            ${player.name}
+                        </span>
+                        <span class="flex-shrink-0 font-bold">
+                            (${player.score} ช็อต)
+                        </span>
+                    </div>
+                `).join('');
+            }
+            
+            // --- 3. Render Modal Mini Scoreboard (เดิม) ---
             MODAL_SCOREBOARD_LIST.innerHTML = players.map(player => `
                 <div class="text-center">
                     <span class="block text-sm font-semibold">${player.name}</span>
@@ -602,6 +633,7 @@
                 </div>
             `).join('');
         }
+
         
         // --- Card Distribution Logic ---
         
@@ -644,16 +676,25 @@
         }
 
         // Function to render the deck onto the board (used for init and resize)
-        function renderMainDeck(currentDeck) {
+                function renderMainDeck(currentDeck) {
             GAME_BOARD.innerHTML = ''; // Clear existing cards
             
             const boardRect = GAME_BOARD.getBoundingClientRect();
             const boardWidth = boardRect.width;
             const boardHeight = boardRect.height;
             
+            // 📌 แก้ไข: ใช้ 280 แทน RESERVED_RIGHT_SPACE
+            const SCOREBOARD_WIDTH_PX = 280; 
+
             // Only reserve space if the screen is large (lg: breakpoint in Tailwind)
             const isLargeScreen = window.innerWidth >= 1024;
-            const reservedSpace = isLargeScreen ? RESERVED_RIGHT_SPACE : 0; 
+            
+            // 📌 แก้ไข Logic การคำนวณพื้นที่ (ใช้ 280px แทน)
+            const availableWidth = isLargeScreen 
+                ? boardWidth - SCOREBOARD_WIDTH_PX // หัก 280px ด้านขวาถ้าเป็นจอใหญ่
+                : boardWidth;                       // ใช้พื้นที่เต็มถ้าเป็นจอมือถือ
+                
+            const availableHeight = boardHeight;
             
             const usedPositions = [];
 
@@ -666,7 +707,8 @@
                 
                 // Try to find a position not too close to others
                 do {
-                    position = getRandomPosition(boardWidth, boardHeight, reservedSpace, CARD_W, CARD_H);
+                    // 📌 แก้ไข: ส่ง availableWidth แทน boardWidth และ reservedSpace
+                    position = getRandomPosition(availableWidth, availableHeight, 0, CARD_W, CARD_H);
                     attempts++;
                 } while (attempts < 10 && isOverlapping(position, CARD_W, CARD_H, usedPositions, 50)); // 50px safety margin
 
